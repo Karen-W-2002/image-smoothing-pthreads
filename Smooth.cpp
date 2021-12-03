@@ -22,7 +22,8 @@ RGBTRIPLE **BMPData = NULL;
 int readBMP(char *fileName); //read file
 int saveBMP(char *fileName); //save file
 void swap(RGBTRIPLE *a, RGBTRIPLE *b);
-RGBTRIPLE **alloc_memory( int Y, int X ); //allocate memory
+RGBTRIPLE **alloc_memory(int Y, int X); //allocate memory
+void process_data(int i, RGBTRIPLE **BMPSaveData, RGBTRIPLE **BMPData, BMPINFO bmpInfo);
 
 int main(int argc,char *argv[])
 {
@@ -37,17 +38,11 @@ int main(int argc,char *argv[])
     BMPData = alloc_memory( bmpInfo.biHeight, bmpInfo.biWidth);
 
 	for(int count = 0; count < NSmooth ; count ++) {
+		// Barrier
 		swap(BMPSaveData,BMPData); // main program does this
+		// Barrier
 		for(int i = 0; i<bmpInfo.biHeight ; i++)
-			for(int j =0; j<bmpInfo.biWidth ; j++){
-				int Top = i>0 ? i-1 : bmpInfo.biHeight-1;
-				int Down = i<bmpInfo.biHeight-1 ? i+1 : 0;
-				int Left = j>0 ? j-1 : bmpInfo.biWidth-1;
-				int Right = j<bmpInfo.biWidth-1 ? j+1 : 0;
-				BMPSaveData[i][j].rgbBlue =  (double) (BMPData[i][j].rgbBlue+BMPData[Top][j].rgbBlue+BMPData[Top][Left].rgbBlue+BMPData[Top][Right].rgbBlue+BMPData[Down][j].rgbBlue+BMPData[Down][Left].rgbBlue+BMPData[Down][Right].rgbBlue+BMPData[i][Left].rgbBlue+BMPData[i][Right].rgbBlue)/9+0.5;
-				BMPSaveData[i][j].rgbGreen =  (double) (BMPData[i][j].rgbGreen+BMPData[Top][j].rgbGreen+BMPData[Top][Left].rgbGreen+BMPData[Top][Right].rgbGreen+BMPData[Down][j].rgbGreen+BMPData[Down][Left].rgbGreen+BMPData[Down][Right].rgbGreen+BMPData[i][Left].rgbGreen+BMPData[i][Right].rgbGreen)/9+0.5;
-				BMPSaveData[i][j].rgbRed =  (double) (BMPData[i][j].rgbRed+BMPData[Top][j].rgbRed+BMPData[Top][Left].rgbRed+BMPData[Top][Right].rgbRed+BMPData[Down][j].rgbRed+BMPData[Down][Left].rgbRed+BMPData[Down][Right].rgbRed+BMPData[i][Left].rgbRed+BMPData[i][Right].rgbRed)/9+0.5;
-			}
+			process_data(i, BMPSaveData, BMPData, bmpInfo);
 	}
 
     if ( saveBMP( outfileName ) )
@@ -144,3 +139,15 @@ void swap(RGBTRIPLE *a, RGBTRIPLE *b)
 	b = temp;
 }
 
+void process_data(int i, RGBTRIPLE **BMPSaveData, RGBTRIPLE **BMPData, BMPINFO bmpInfo)
+{
+	for(int j =0; j < bmpInfo.biWidth; j++) {
+		int Top = i > 0 ? i-1 : bmpInfo.biHeight-1;
+		int Down = i<bmpInfo.biHeight-1 ? i+1 : 0;
+		int Left = j>0 ? j-1 : bmpInfo.biWidth-1;
+		int Right = j<bmpInfo.biWidth-1 ? j+1 : 0;
+		BMPSaveData[i][j].rgbBlue =  (double) (BMPData[i][j].rgbBlue+BMPData[Top][j].rgbBlue+BMPData[Top][Left].rgbBlue+BMPData[Top][Right].rgbBlue+BMPData[Down][j].rgbBlue+BMPData[Down][Left].rgbBlue+BMPData[Down][Right].rgbBlue+BMPData[i][Left].rgbBlue+BMPData[i][Right].rgbBlue)/9+0.5;
+		BMPSaveData[i][j].rgbGreen =  (double) (BMPData[i][j].rgbGreen+BMPData[Top][j].rgbGreen+BMPData[Top][Left].rgbGreen+BMPData[Top][Right].rgbGreen+BMPData[Down][j].rgbGreen+BMPData[Down][Left].rgbGreen+BMPData[Down][Right].rgbGreen+BMPData[i][Left].rgbGreen+BMPData[i][Right].rgbGreen)/9+0.5;
+		BMPSaveData[i][j].rgbRed =  (double) (BMPData[i][j].rgbRed+BMPData[Top][j].rgbRed+BMPData[Top][Left].rgbRed+BMPData[Top][Right].rgbRed+BMPData[Down][j].rgbRed+BMPData[Down][Left].rgbRed+BMPData[Down][Right].rgbRed+BMPData[i][Left].rgbRed+BMPData[i][Right].rgbRed)/9+0.5;
+	}
+}
