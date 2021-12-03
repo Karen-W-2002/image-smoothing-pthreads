@@ -1,5 +1,5 @@
-//#include <mpi.h>
 #include <iostream>
+#include <time.h>
 #include <string>
 #include <fstream>
 #include <stdio.h>
@@ -12,7 +12,7 @@ using namespace std;
 
 #define NSmooth 1000
 
-pthread_mutex_t saveDataLock;
+pthread_mutex_t mutex;
 
 BMPHEADER bmpHeader;                       
 BMPINFO bmpInfo;
@@ -23,10 +23,12 @@ int readBMP(char *fileName); //read file
 int saveBMP(char *fileName); //save file
 void swap(RGBTRIPLE *a, RGBTRIPLE *b);
 RGBTRIPLE **alloc_memory(int Y, int X); //allocate memory
-void process_data(int i, RGBTRIPLE **BMPSaveData, RGBTRIPLE **BMPData, BMPINFO bmpInfo);
+void *process_data(int i, RGBTRIPLE **BMPSaveData, RGBTRIPLE **BMPData, BMPINFO bmpInfo);
 
 int main(int argc,char *argv[])
 {
+	clock_t time_start = clock();
+
     char *infileName = (char*)"input.bmp";
     char *outfileName = (char*)"output.bmp";
 	
@@ -37,19 +39,34 @@ int main(int argc,char *argv[])
 
     BMPData = alloc_memory( bmpInfo.biHeight, bmpInfo.biWidth);
 
+	// threads
+	pthread_mutex_init(&mutex, NULL);
+	int thread_num = 2; //bmpInfo.biHeight;
+
+	pthread_t tid[thread_num];
+
 	for(int count = 0; count < NSmooth ; count ++) {
 		// Barrier
+		//printf("count: %d\n", count);
 		swap(BMPSaveData,BMPData); // main program does this
 		// Barrier
 		for(int i = 0; i<bmpInfo.biHeight ; i++)
 			process_data(i, BMPSaveData, BMPData, bmpInfo);
 	}
+/*
+	// Block until threads complete
+	for(int i = 0; i < thread_num; i++) {
+		
+	}*/
+
+	printf("Time taken %.2f seconds\n", (double)(clock()-time_start)/CLOCKS_PER_SEC);
 
     if ( saveBMP( outfileName ) )
     	cout << "Save file successfully!!" << endl;
     else
         cout << "Save file fails!!" << endl;
-	
+
+	pthread_mutex_destroy(&mutex);
 	free(BMPData[0]);
 	free(BMPSaveData[0]);
 	free(BMPData);
@@ -139,7 +156,7 @@ void swap(RGBTRIPLE *a, RGBTRIPLE *b)
 	b = temp;
 }
 
-void process_data(int i, RGBTRIPLE **BMPSaveData, RGBTRIPLE **BMPData, BMPINFO bmpInfo)
+void *process_data(int i, RGBTRIPLE **BMPSaveData, RGBTRIPLE **BMPData, BMPINFO bmpInfo)
 {
 	for(int j =0; j < bmpInfo.biWidth; j++) {
 		int Top = i > 0 ? i-1 : bmpInfo.biHeight-1;
