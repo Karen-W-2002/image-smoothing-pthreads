@@ -46,15 +46,17 @@ int main(int argc,char *argv[])
 	int thread_num = 2; // bmpInfo.biHeight / thread_num = height each thread needs to process
 
 	//pthread_t tid[thread_num];
-
+	
+	swap(BMPSaveData, BMPTemp);
 	// smooth 1000 times
 	for(int count = 0; count < NSmooth ; count ++) {
 		// Barrier
 		printf("count: %d\n", count);
-		swap(BMPSaveData, BMPData); // main program does this
+		swap(BMPTemp, BMPData);
 		// Barrier
 		process_data0(bmpInfo.biHeight, BMPSaveData, BMPData, bmpInfo, BMPTemp);
 	}
+	swap(BMPSaveData, BMPTemp);
 
 	printf("Time taken %.2f seconds\n", (double)(clock()-time_start)/CLOCKS_PER_SEC);
 
@@ -64,11 +66,8 @@ int main(int argc,char *argv[])
         cout << "Save file fails!!" << endl;
 
 	pthread_mutex_destroy(&mutex);
-	//free(BMPData[0]);
-	//free(BMPSaveData[0]);
 	free(BMPData);
 	free(BMPSaveData);
-	//free(BMPTemp[0]);
 	free(BMPTemp);
     return 0;
 }
@@ -158,7 +157,6 @@ void process_data0(int height, RGBTRIPLE **BMPSaveData, RGBTRIPLE **BMPData, BMP
 {
 	for(int i = 0; i < height; i++) {
 		process_data(i, BMPSaveData, BMPData, bmpInfo, BMPTemp);
-		BMPSaveData[i] = BMPTemp[i];
 	}
 }	
 
