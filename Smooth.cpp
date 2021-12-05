@@ -26,7 +26,7 @@ int saveBMP(char *fileName); //save file
 void swap(RGBTRIPLE *a, RGBTRIPLE *b);
 RGBTRIPLE **alloc_memory(int Y, int X); //allocate memory
 //void smooth(RGBTRIPLE **BMPSaveData, RGBTRIPLE **BMPData, BMPINFO bmpInfo, RGBTRIPLE **BMPTemp);
-void smooth(struct Arguments args);
+void *smooth(void *args);
 void process_data0(int height, RGBTRIPLE **BMPSaveData, RGBTRIPLE **BMPData, BMPINFO bmpInfo, RGBTRIPLE **BMPTemp);
 void process_data(int i, RGBTRIPLE **BMPSaveData, RGBTRIPLE **BMPData, BMPINFO bmpInfo, RGBTRIPLE **BMPTemp);
 //void store_data(int i, RGBTRIPLE ***BMPSaveData, RGBTRIPLE ***BMPTemp);
@@ -64,10 +64,14 @@ int main(int argc,char *argv[])
 		args.BMPData = BMPData;
 		args.bmpInfo = bmpInfo;
 		args.BMPTemp = BMPTemp;	
-
+		pthread_create(&tid[0], NULL, smooth, (void*)args);
 	//}
+
+	/*for(int i = 0; i < ThreadNUM; i++) {
+		pthread_join(tid[i], NULL);
+	 }*/
 	//smooth(BMPSaveData, BMPData, bmpInfo, BMPTemp);
-	smooth(args);
+	//smooth(args);
 
 	printf("Time taken %.2f seconds\n", (double)(clock()-time_start)/CLOCKS_PER_SEC);
 
@@ -165,17 +169,19 @@ void swap(RGBTRIPLE *a, RGBTRIPLE *b)
 }
 
 //void smooth(RGBTRIPLE **BMPSaveData, RGBTRIPLE **BMPData, BMPINFO bmpInfo, RGBTRIPLE **BMPTemp)
-void smooth(struct Arguments args)
+void *smooth(void* args)
 {
+	Arguments *local_args = (Arguments*)args;
+
 	for(int count = 0; count < NSmooth; count ++) {
 		// Barrier
 		printf("count: %d\n", count);
-		swap(args.BMPTemp, args.BMPData);
+		swap(local_args->BMPTemp, local_args->BMPData);
 		// Barrier
-		process_data0(args.bmpInfo.biHeight, args.BMPSaveData, args.BMPData, args.bmpInfo, args.BMPTemp);
+		process_data0(local_args->bmpInfo.biHeight, local_args->BMPSaveData, local_args->BMPData, local_args->bmpInfo, local_args->BMPTemp);
 	}
 	pthread_mutex_lock(&lock);
-	std::copy(&args.BMPTemp[0][0], &args.BMPTemp[0][0]+(args.bmpInfo.biWidth*args.bmpInfo.biHeight)/2, &args.BMPSaveData[0][0]);
+	std::copy(&local_args->BMPTemp[0][0], &local_args->BMPTemp[0][0]+(local_args->bmpInfo.biWidth*local_args->bmpInfo.biHeight)/2, &local_args->BMPSaveData[0][0]);
 	pthread_mutex_unlock(&lock);
 }
 
