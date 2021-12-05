@@ -10,22 +10,33 @@
 
 using namespace std;
 
-#define NSmooth 1000
+#define NSmooth 10
+#define ThreadNUM 2
 
-pthread_mutex_t mutex;
+pthread_mutex_t lock;
 
-BMPHEADER bmpHeader;                       
+
+BMPHEADER bmpHeader;            
 BMPINFO bmpInfo;
-RGBTRIPLE **BMPSaveData = NULL;                                               
+RGBTRIPLE **BMPSaveData = NULL;                              
 RGBTRIPLE **BMPData = NULL;                                                   
 
 int readBMP(char *fileName); //read file
 int saveBMP(char *fileName); //save file
 void swap(RGBTRIPLE *a, RGBTRIPLE *b);
 RGBTRIPLE **alloc_memory(int Y, int X); //allocate memory
+//void smooth(RGBTRIPLE **BMPSaveData, RGBTRIPLE **BMPData, BMPINFO bmpInfo, RGBTRIPLE **BMPTemp);
+void smooth(struct Arguments args);
 void process_data0(int height, RGBTRIPLE **BMPSaveData, RGBTRIPLE **BMPData, BMPINFO bmpInfo, RGBTRIPLE **BMPTemp);
 void process_data(int i, RGBTRIPLE **BMPSaveData, RGBTRIPLE **BMPData, BMPINFO bmpInfo, RGBTRIPLE **BMPTemp);
 //void store_data(int i, RGBTRIPLE ***BMPSaveData, RGBTRIPLE ***BMPTemp);
+
+struct Arguments {
+	RGBTRIPLE **BMPSaveData;
+	RGBTRIPLE **BMPData;
+	BMPINFO bmpInfo;
+	RGBTRIPLE **BMPTemp;
+} args;
 
 int main(int argc,char *argv[])
 {
@@ -39,24 +50,24 @@ int main(int argc,char *argv[])
     else 
         cout << "Read file fails!!" << endl;
 
-    BMPData = alloc_memory( bmpInfo.biHeight, bmpInfo.biWidth);
+    BMPData = alloc_memory(bmpInfo.biHeight, bmpInfo.biWidth);
 	RGBTRIPLE **BMPTemp = alloc_memory(bmpInfo.biHeight, bmpInfo.biWidth);
 	// threads
-	pthread_mutex_init(&mutex, NULL);
-	int thread_num = 2; // bmpInfo.biHeight / thread_num = height each thread needs to process
-
-	//pthread_t tid[thread_num];
-	
+	pthread_mutex_init(&lock, NULL);
+	pthread_t tid[ThreadNUM];
+		
 	swap(BMPSaveData, BMPTemp);
 	// smooth 1000 times
-	for(int count = 0; count < NSmooth ; count ++) {
-		// Barrier
-		printf("count: %d\n", count);
-		swap(BMPTemp, BMPData);
-		// Barrier
-		process_data0(bmpInfo.biHeight, BMPSaveData, BMPData, bmpInfo, BMPTemp);
-	}
-	swap(BMPSaveData, BMPTemp);
+	//struct Arguments args;
+	//for(int i = 0; i < ThreadNUM; i++) {
+		args.BMPSaveData = BMPSaveData;
+		args.BMPData = BMPData;
+		args.bmpInfo = bmpInfo;
+		args.BMPTemp = BMPTemp;	
+
+	//}
+	//smooth(BMPSaveData, BMPData, bmpInfo, BMPTemp);
+	smooth(args);
 
 	printf("Time taken %.2f seconds\n", (double)(clock()-time_start)/CLOCKS_PER_SEC);
 
@@ -65,7 +76,7 @@ int main(int argc,char *argv[])
     else
         cout << "Save file fails!!" << endl;
 
-	pthread_mutex_destroy(&mutex);
+	pthread_mutex_destroy(&lock);
 	free(BMPData);
 	free(BMPSaveData);
 	free(BMPTemp);
@@ -81,25 +92,25 @@ int readBMP(char *fileName)
        	return 0;
    	}
  
-	bmpFile.read( ( char* ) &bmpHeader, sizeof( BMPHEADER ) );
+	bmpFile.read((char*)&bmpHeader, sizeof(BMPHEADER));
  
-    if(bmpHeader.bfType != 0x4d42 ){
+    if(bmpHeader.bfType != 0x4d42){
     	cout << "This file is not .BMP!!" << endl ;
         return 0;
     }
  
-    bmpFile.read( ( char* ) &bmpInfo, sizeof( BMPINFO ) );
+    bmpFile.read((char*)&bmpInfo, sizeof(BMPINFO));
         
-    if (bmpInfo.biBitCount != 24 ){
+    if (bmpInfo.biBitCount != 24){
    		cout << "The file is not 24 bits!!" << endl;
         return 0;
    	}
 
-    while(bmpInfo.biWidth % 4 != 0 )
+    while(bmpInfo.biWidth % 4 != 0)
     	bmpInfo.biWidth++;
 
     BMPSaveData = alloc_memory( bmpInfo.biHeight, bmpInfo.biWidth);
-	bmpFile.read( (char* )BMPSaveData[0], bmpInfo.biWidth*sizeof(RGBTRIPLE)*bmpInfo.biHeight);
+	bmpFile.read((char*)BMPSaveData[0], bmpInfo.biWidth*sizeof(RGBTRIPLE)*bmpInfo.biHeight);
 	
     bmpFile.close();
  
@@ -151,6 +162,21 @@ void swap(RGBTRIPLE *a, RGBTRIPLE *b)
 	temp = a;
 	a = b;
 	b = temp;
+}
+
+//void smooth(RGBTRIPLE **BMPSaveData, RGBTRIPLE **BMPData, BMPINFO bmpInfo, RGBTRIPLE **BMPTemp)
+void smooth(struct Arguments args)
+{
+	for(int count = 0; count < NSmooth; count ++) {
+		// Barrier
+		printf("count: %d\n", count);
+		swap(args.BMPTemp, args.BMPData);
+		// Barrier
+		process_data0(args.bmpInfo.biHeight, args.BMPSaveData, args.BMPData, args.bmpInfo, args.BMPTemp);
+	}
+	pthread_mutex_lock(&lock);
+	std::copy(&args.BMPTemp[0][0], &args.BMPTemp[0][0]+(args.bmpInfo.biWidth*args.bmpInfo.biHeight)/2, &args.BMPSaveData[0][0]);
+	pthread_mutex_unlock(&lock);
 }
 
 void process_data0(int height, RGBTRIPLE **BMPSaveData, RGBTRIPLE **BMPData, BMPINFO bmpInfo, RGBTRIPLE **BMPTemp)
