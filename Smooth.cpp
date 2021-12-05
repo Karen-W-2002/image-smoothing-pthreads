@@ -13,8 +13,7 @@ using namespace std;
 #define NSmooth 10
 #define ThreadNUM 2
 
-pthread_mutex_t lock;
-
+pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
 BMPHEADER bmpHeader;            
 BMPINFO bmpInfo;
@@ -25,7 +24,7 @@ int readBMP(char *fileName); //read file
 int saveBMP(char *fileName); //save file
 void swap(RGBTRIPLE *a, RGBTRIPLE *b);
 RGBTRIPLE **alloc_memory(int Y, int X); //allocate memory
-void *smooth(void *id);
+void *smooth(void *arg);
 void process_data0(int height, RGBTRIPLE **BMPData, BMPINFO bmpInfo, RGBTRIPLE **BMPTemp);
 void process_data(int i, RGBTRIPLE **BMPData, BMPINFO bmpInfo, RGBTRIPLE **BMPTemp);
 
@@ -42,18 +41,18 @@ int main(int argc,char *argv[])
         cout << "Read file fails!!" << endl;
 
     BMPData = alloc_memory(bmpInfo.biHeight, bmpInfo.biWidth);
-	// threads
-	pthread_mutex_init(&lock, NULL);
-	pthread_t tid[ThreadNUM];
-		
-	// smoothing operation with threads
-	//for(int i = 0; i < ThreadNUM; i++) {
-		int i=0;
-		pthread_create(&tid[0], NULL, smooth, (void*)&i);
-	//}
 
-	for(int j = 0; j < 1; j++) {
-		pthread_join(tid[j], NULL);
+	// threads
+	pthread_t tid[ThreadNUM];
+	unsigned int ints[ThreadNUM];
+
+	// smoothing operation using threads
+	for(int i = 0; i < ThreadNUM; i++) {
+		ints[i] = i;
+		pthread_create(&tid[i], NULL, smooth, &ints[i]);
+	}
+	for(int i = 0; i < ThreadNUM; i++) {
+		pthread_join(tid[i], NULL);
 	 }
 
 	printf("Time taken %.2f seconds\n", (double)(clock()-time_start)/CLOCKS_PER_SEC);
@@ -63,7 +62,7 @@ int main(int argc,char *argv[])
     else
         cout << "Save file fails!!" << endl;
 
-	pthread_mutex_destroy(&lock);
+	pthread_mutex_destroy(&mutex);
 	free(BMPData);
 	free(BMPSaveData);
     return 0;
@@ -150,8 +149,9 @@ void swap(RGBTRIPLE *a, RGBTRIPLE *b)
 	b = temp;
 }
 
-void *smooth(void *id)
+void *smooth(void *arg)
 {
+	int id = *((int*)arg);
 	int total_area = bmpInfo.biHeight * bmpInfo.biWidth;
 	RGBTRIPLE **BMPTemp = alloc_memory(bmpInfo.biHeight, bmpInfo.biWidth);
 	RGBTRIPLE **BMPSaveData_local = alloc_memory(bmpInfo.biHeight, bmpInfo.biWidth);
@@ -163,12 +163,13 @@ void *smooth(void *id)
 	for(int count = 0; count < NSmooth; count ++) {
 		printf("count: %d\n", count);
 		swap(BMPTemp, BMPData_local);
-		process_data0(bmpInfo.biHeight, BMPData_local, bmpInfo, BMPTemp);
+		process_data0(bmpInfo.biHeight/ThreadNUM, BMPData_local, bmpInfo, BMPTemp);
 	}
 
-	pthread_mutex_lock(&lock);
+	pthread_mutex_lock(&mutex);
 	std::copy(&BMPTemp[0][0], &BMPTemp[0][0] + total_area, &BMPSaveData[0][0]);
-	pthread_mutex_unlock(&lock);
+	printf("hey im inside! says id: %d\n", id);
+	pthread_mutex_unlock(&mutex);
 
 	free(BMPTemp);
 	free(BMPSaveData_local);
