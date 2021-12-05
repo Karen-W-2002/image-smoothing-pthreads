@@ -25,18 +25,9 @@ int readBMP(char *fileName); //read file
 int saveBMP(char *fileName); //save file
 void swap(RGBTRIPLE *a, RGBTRIPLE *b);
 RGBTRIPLE **alloc_memory(int Y, int X); //allocate memory
-//void smooth(RGBTRIPLE **BMPSaveData, RGBTRIPLE **BMPData, BMPINFO bmpInfo, RGBTRIPLE **BMPTemp);
-void *smooth(void *args);
-void process_data0(int height, RGBTRIPLE **BMPSaveData, RGBTRIPLE **BMPData, BMPINFO bmpInfo, RGBTRIPLE **BMPTemp);
-void process_data(int i, RGBTRIPLE **BMPSaveData, RGBTRIPLE **BMPData, BMPINFO bmpInfo, RGBTRIPLE **BMPTemp);
-//void store_data(int i, RGBTRIPLE ***BMPSaveData, RGBTRIPLE ***BMPTemp);
-
-struct Arguments {
-	RGBTRIPLE **BMPSaveData;
-	RGBTRIPLE **BMPData;
-	BMPINFO bmpInfo;
-	RGBTRIPLE **BMPTemp;
-} args;
+void *smooth(void *id);
+void process_data0(int height, RGBTRIPLE **BMPData, BMPINFO bmpInfo, RGBTRIPLE **BMPTemp);
+void process_data(int i, RGBTRIPLE **BMPData, BMPINFO bmpInfo, RGBTRIPLE **BMPTemp);
 
 int main(int argc,char *argv[])
 {
@@ -51,27 +42,19 @@ int main(int argc,char *argv[])
         cout << "Read file fails!!" << endl;
 
     BMPData = alloc_memory(bmpInfo.biHeight, bmpInfo.biWidth);
-	RGBTRIPLE **BMPTemp = alloc_memory(bmpInfo.biHeight, bmpInfo.biWidth);
 	// threads
 	pthread_mutex_init(&lock, NULL);
 	pthread_t tid[ThreadNUM];
 		
-	swap(BMPSaveData, BMPTemp);
-	// smooth 1000 times
-	//struct Arguments args;
+	// smoothing operation with threads
 	//for(int i = 0; i < ThreadNUM; i++) {
-		args.BMPSaveData = BMPSaveData;
-		args.BMPData = BMPData;
-		args.bmpInfo = bmpInfo;
-		args.BMPTemp = BMPTemp;	
-		pthread_create(&tid[0], NULL, smooth, (void*)args);
+		int i=0;
+		pthread_create(&tid[0], NULL, smooth, (void*)&i);
 	//}
 
-	/*for(int i = 0; i < ThreadNUM; i++) {
-		pthread_join(tid[i], NULL);
-	 }*/
-	//smooth(BMPSaveData, BMPData, bmpInfo, BMPTemp);
-	//smooth(args);
+	for(int j = 0; j < 1; j++) {
+		pthread_join(tid[j], NULL);
+	 }
 
 	printf("Time taken %.2f seconds\n", (double)(clock()-time_start)/CLOCKS_PER_SEC);
 
@@ -83,7 +66,6 @@ int main(int argc,char *argv[])
 	pthread_mutex_destroy(&lock);
 	free(BMPData);
 	free(BMPSaveData);
-	free(BMPTemp);
     return 0;
 }
 
@@ -168,31 +150,40 @@ void swap(RGBTRIPLE *a, RGBTRIPLE *b)
 	b = temp;
 }
 
-//void smooth(RGBTRIPLE **BMPSaveData, RGBTRIPLE **BMPData, BMPINFO bmpInfo, RGBTRIPLE **BMPTemp)
-void *smooth(void* args)
+void *smooth(void *id)
 {
-	Arguments *local_args = (Arguments*)args;
+	int total_area = bmpInfo.biHeight * bmpInfo.biWidth;
+	RGBTRIPLE **BMPTemp = alloc_memory(bmpInfo.biHeight, bmpInfo.biWidth);
+	RGBTRIPLE **BMPSaveData_local = alloc_memory(bmpInfo.biHeight, bmpInfo.biWidth);
+	RGBTRIPLE **BMPData_local = alloc_memory(bmpInfo.biHeight, bmpInfo.biWidth);
+	std::copy(&BMPSaveData[0][0], &BMPSaveData[0][0] + total_area, &BMPSaveData_local[0][0]);
+	std::copy(&BMPData[0][0], &BMPData[0][0] + total_area, &BMPData_local[0][0]);
+	swap(BMPSaveData_local, BMPTemp);
 
 	for(int count = 0; count < NSmooth; count ++) {
-		// Barrier
 		printf("count: %d\n", count);
-		swap(local_args->BMPTemp, local_args->BMPData);
-		// Barrier
-		process_data0(local_args->bmpInfo.biHeight, local_args->BMPSaveData, local_args->BMPData, local_args->bmpInfo, local_args->BMPTemp);
+		swap(BMPTemp, BMPData_local);
+		process_data0(bmpInfo.biHeight, BMPData_local, bmpInfo, BMPTemp);
 	}
+
 	pthread_mutex_lock(&lock);
-	std::copy(&local_args->BMPTemp[0][0], &local_args->BMPTemp[0][0]+(local_args->bmpInfo.biWidth*local_args->bmpInfo.biHeight)/2, &local_args->BMPSaveData[0][0]);
+	std::copy(&BMPTemp[0][0], &BMPTemp[0][0] + total_area, &BMPSaveData[0][0]);
 	pthread_mutex_unlock(&lock);
+
+	free(BMPTemp);
+	free(BMPSaveData_local);
+	free(BMPData_local);
+	return 0;
 }
 
-void process_data0(int height, RGBTRIPLE **BMPSaveData, RGBTRIPLE **BMPData, BMPINFO bmpInfo, RGBTRIPLE **BMPTemp)
+void process_data0(int height, RGBTRIPLE **BMPData, BMPINFO bmpInfo, RGBTRIPLE **BMPTemp)
 {
 	for(int i = 0; i < height; i++) {
-		process_data(i, BMPSaveData, BMPData, bmpInfo, BMPTemp);
+		process_data(i, BMPData, bmpInfo, BMPTemp);
 	}
 }	
 
-void process_data(int i, RGBTRIPLE **BMPSaveData, RGBTRIPLE **BMPData, BMPINFO bmpInfo, RGBTRIPLE **BMPTemp)
+void process_data(int i, RGBTRIPLE **BMPData, BMPINFO bmpInfo, RGBTRIPLE **BMPTemp)
 {
 	for(int j = 0; j < bmpInfo.biWidth; j++) {
 		int Top = i > 0 ? i-1 : bmpInfo.biHeight-1;
