@@ -166,9 +166,10 @@ void *smooth(void *arg)
 		process_data0(bmpInfo.biHeight/ThreadNUM, BMPData_local, bmpInfo, BMPTemp);
 	}
 
+	// race condition
 	pthread_mutex_lock(&mutex);
-	std::copy(&BMPTemp[0][0], &BMPTemp[0][0] + total_area, &BMPSaveData[0][0]);
-	printf("hey im inside! says id: %d\n", id);
+	//std::copy(&BMPTemp[0][0] + id/total_area, &BMPTemp[0][0] + ((total_area/ThreadNUM) + (total_area/ThreadNUM)*id)/total_area, &BMPSaveData[0][0]);
+	std::copy(&BMPTemp[0][0]+(total_area/ThreadNUM)*id, &BMPTemp[0][0]+total_area, &BMPSaveData[0][0]);
 	pthread_mutex_unlock(&mutex);
 
 	free(BMPTemp);
