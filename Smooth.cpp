@@ -25,7 +25,7 @@ int saveBMP(char *fileName); //save file
 void swap(RGBTRIPLE *a, RGBTRIPLE *b);
 RGBTRIPLE **alloc_memory(int Y, int X); //allocate memory
 void *smooth(void *arg);
-void process_data0(int height, RGBTRIPLE **BMPData, BMPINFO bmpInfo, RGBTRIPLE **BMPTemp);
+void process_data0(RGBTRIPLE **BMPData, BMPINFO bmpInfo, RGBTRIPLE **BMPTemp, int id);
 void process_data(int i, RGBTRIPLE **BMPData, BMPINFO bmpInfo, RGBTRIPLE **BMPTemp);
 
 int main(int argc,char *argv[])
@@ -163,13 +163,14 @@ void *smooth(void *arg)
 	for(int count = 0; count < NSmooth; count ++) {
 		printf("count: %d\n", count);
 		swap(BMPTemp, BMPData_local);
-		process_data0(bmpInfo.biHeight/ThreadNUM, BMPData_local, bmpInfo, BMPTemp);
+		process_data0(BMPData_local, bmpInfo, BMPTemp, id);
 	}
 
 	// race condition
+	
 	pthread_mutex_lock(&mutex);
-	//std::copy(&BMPTemp[0][0] + id/total_area, &BMPTemp[0][0] + ((total_area/ThreadNUM) + (total_area/ThreadNUM)*id)/total_area, &BMPSaveData[0][0]);
-	std::copy(&BMPTemp[0][0]+(total_area/ThreadNUM)*id, &BMPTemp[0][0]+total_area, &BMPSaveData[0][0]);
+	std::copy(&BMPTemp[0][0], &BMPTemp[0][0]+total_area/(ThreadNUM-id), &BMPSaveData[0][0]);
+	//if(id==1) std::copy(&BMPTemp[0][0], &BMPTemp[0][0]+total_area/(ThreadNUM-id), &BMPSaveData[0][0]);
 	pthread_mutex_unlock(&mutex);
 
 	free(BMPTemp);
@@ -178,9 +179,14 @@ void *smooth(void *arg)
 	return 0;
 }
 
-void process_data0(int height, RGBTRIPLE **BMPData, BMPINFO bmpInfo, RGBTRIPLE **BMPTemp)
+void process_data0(RGBTRIPLE **BMPData, BMPINFO bmpInfo, RGBTRIPLE **BMPTemp, int id)
 {
-	for(int i = 0; i < height; i++) {
+	int start_i = ((bmpInfo.biHeight/ThreadNUM)*id);
+	int end_i = ((bmpInfo.biHeight/ThreadNUM)*(id+1));
+	if(end_i != bmpInfo.biHeight) end_i+=2;
+	if(start_i != 0) start_i-=2;
+	printf("start: %d, end: %d\n", start_i, end_i);
+	for(int i = start_i; i < end_i; i++) {
 		process_data(i, BMPData, bmpInfo, BMPTemp);
 	}
 }	
