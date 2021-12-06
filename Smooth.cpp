@@ -14,6 +14,7 @@ using namespace std;
 #define ThreadNUM 2
 
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+int id_signal[ThreadNUM] = {0};
 
 BMPHEADER bmpHeader;            
 BMPINFO bmpInfo;
@@ -162,15 +163,32 @@ void *smooth(void *arg)
 
 	for(int count = 0; count < NSmooth; count ++) {
 		printf("count: %d\n", count);
+		//update Data!!!! then copy data to data local.
+		
+
 		swap(BMPTemp, BMPData_local);
 		process_data0(BMPData_local, bmpInfo, BMPTemp, id);
 	}
 
-	// race condition
-	
+	// resets signal for the next section of code
+	if(id == 0) {
+		for(int i = 0; i < ThreadNUM; i++) {
+			id_signal[i] = 0;
+		}
+	}
+
+	if(id != (ThreadNUM-1)) {
+		while(1) {
+			if(id_signal[id] == 1) {
+				break;
+			}		
+		}
+	}
+
+	// race condition	
 	pthread_mutex_lock(&mutex);
 	std::copy(&BMPTemp[0][0], &BMPTemp[0][0]+total_area/(ThreadNUM-id), &BMPSaveData[0][0]);
-	//if(id==1) std::copy(&BMPTemp[0][0], &BMPTemp[0][0]+total_area/(ThreadNUM-id), &BMPSaveData[0][0]);
+	if(id!=0) id_signal[id-1] = 1;
 	pthread_mutex_unlock(&mutex);
 
 	free(BMPTemp);
@@ -185,7 +203,6 @@ void process_data0(RGBTRIPLE **BMPData, BMPINFO bmpInfo, RGBTRIPLE **BMPTemp, in
 	int end_i = ((bmpInfo.biHeight/ThreadNUM)*(id+1));
 	if(end_i != bmpInfo.biHeight) end_i+=2;
 	if(start_i != 0) start_i-=2;
-	printf("start: %d, end: %d\n", start_i, end_i);
 	for(int i = start_i; i < end_i; i++) {
 		process_data(i, BMPData, bmpInfo, BMPTemp);
 	}
