@@ -1,4 +1,5 @@
 #include <iostream>
+#include <algorithm> // std::fill
 #include <time.h>
 #include <string>
 #include <fstream>
@@ -10,11 +11,18 @@
 
 using namespace std;
 
-#define NSmooth 10
+#define NSmooth 1000
 #define ThreadNUM 2
 
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t barrier = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t barrier2 = PTHREAD_MUTEX_INITIALIZER;
 int id_signal[ThreadNUM] = {0};
+int id_barrier_signal[ThreadNUM] = {0};
+int thread_count = 0;
+int thread_count_ = 0;
+bool isDone = false;
+bool isDone_ = false;
 
 BMPHEADER bmpHeader;            
 BMPINFO bmpInfo;
@@ -64,6 +72,7 @@ int main(int argc,char *argv[])
         cout << "Save file fails!!" << endl;
 
 	pthread_mutex_destroy(&mutex);
+	pthread_mutex_destroy(&barrier);
 	free(BMPData);
 	free(BMPSaveData);
     return 0;
@@ -149,7 +158,7 @@ void swap(RGBTRIPLE *a, RGBTRIPLE *b)
 	a = b;
 	b = temp;
 }
-
+////////////////////////////////////////////////////////////////////////////
 void *smooth(void *arg)
 {
 	int id = *((int*)arg);
@@ -162,28 +171,96 @@ void *smooth(void *arg)
 	swap(BMPSaveData_local, BMPTemp);
 
 	for(int count = 0; count < NSmooth; count ++) {
-		printf("count: %d\n", count);
+		printf("id: %d count: %d\n", id, count);
 		//update Data!!!! then copy data to data local.
-		
 
+		printf("id: %d - case 1\n", id);
+		// reset the variables
+		if(id == (ThreadNUM-1)) {
+			thread_count = 0;
+			memset(&id_signal, 0, sizeof(id_signal));
+			isDone = true;
+		}
+
+		while(1)
+			if(isDone) break;
+
+		// decreasing order
+		if(id != (ThreadNUM-1))
+			while(1)
+				if(id_signal[id] == 1) break;
+
+		printf("id: %d - case 2\n", id);
+
+		// updates BMPData (they do it in decreasing order)
+		pthread_mutex_lock(&mutex);
+		std::copy(&BMPTemp[0][0], &BMPTemp[0][0]+total_area/(ThreadNUM-id), &BMPData[0][0]);
+		if(id!=0) id_signal[id-1] = 1;
+		pthread_mutex_unlock(&mutex);
+
+		printf("id: %d - case 3\n", id);
+
+		// copy BMPData to local array
+		std::copy(&BMPData[0][0], &BMPData[0][0] + total_area, &BMPData_local[0][0]);
+
+		// Barrier using mutex
+		pthread_mutex_lock(&barrier);
+		thread_count++;
+		pthread_mutex_unlock(&barrier);
+		printf("id: %d - case 4, thread_count: %d \n", id, thread_count);
+		while(true) {
+			if(thread_count == ThreadNUM) break;
+		}
+		printf("id: %d - case 5\n", id);
+
+		// reset again with the last one in place
+		if(id == 0) {
+			isDone = false;
+		}
+
+		// image processing
 		swap(BMPTemp, BMPData_local);
 		process_data0(BMPData_local, bmpInfo, BMPTemp, id);
-	}
+		
+		// reset
+		if(id == 0) {
+			thread_count_ = 0;
+			memset(&id_barrier_signal, 0, sizeof(id_barrier_signal));
+			isDone_ = true;
+		}
 
+		while(1)
+			if(isDone_) break;
+
+		// Increasing order
+		if(id != 0)
+			while(1)
+				if(id_barrier_signal[id] == 1) break;
+
+		printf("id: %d - case 6\n", id);
+		pthread_mutex_lock(&barrier2);
+		thread_count_++;
+		id_barrier_signal[id+1] = 1;
+		pthread_mutex_unlock(&barrier2);
+		printf("id: %d, thread_count_: %d\n", id, thread_count_);
+		while(true) {
+			if(thread_count_ == ThreadNUM) break;
+		}
+
+		// reset again with the last one in place
+		if(id == (ThreadNUM - 1)) {
+			isDone_ = false;
+		}
+	}
+///////////////////////////////////////////////////////////////////////////////////////////
 	// resets signal for the next section of code
-	if(id == 0) {
-		for(int i = 0; i < ThreadNUM; i++) {
+	if(id == (ThreadNUM-1)) 
+		for(int i = 0; i < ThreadNUM; i++)
 			id_signal[i] = 0;
-		}
-	}
 
-	if(id != (ThreadNUM-1)) {
-		while(1) {
-			if(id_signal[id] == 1) {
-				break;
-			}		
-		}
-	}
+	if(id != (ThreadNUM-1))
+		while(1)
+			if(id_signal[id] == 1) break;
 
 	// race condition	
 	pthread_mutex_lock(&mutex);
