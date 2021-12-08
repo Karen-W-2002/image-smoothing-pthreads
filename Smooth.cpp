@@ -15,8 +15,6 @@ using namespace std;
 #define ThreadNUM 2
 
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-pthread_mutex_t barrier = PTHREAD_MUTEX_INITIALIZER;
-pthread_mutex_t barrier2 = PTHREAD_MUTEX_INITIALIZER;
 int id_signal[ThreadNUM] = {0};
 int id_barrier_signal[ThreadNUM] = {0};
 int thread_count = 0;
@@ -65,7 +63,7 @@ int main(int argc,char *argv[])
 		pthread_join(tid[i], NULL);
 	 }
 
-	printf("Time taken %.2f seconds\n", (double)(clock()-time_start)/CLOCKS_PER_SEC);
+	printf("Time taken %.2f seconds\n", (double)((clock()-time_start)/CLOCKS_PER_SEC)/4);
 
     if ( saveBMP( outfileName ) )
     	cout << "Save file successfully!!" << endl;
@@ -73,7 +71,6 @@ int main(int argc,char *argv[])
         cout << "Save file fails!!" << endl;
 
 	pthread_mutex_destroy(&mutex);
-	pthread_mutex_destroy(&barrier);
 	free(BMPData);
 	free(BMPSaveData);
     return 0;
@@ -183,24 +180,19 @@ void *smooth(void *arg)
 		while(1)
 			if(isDone) break;
 
-		// decreasing order
-		if(id != (ThreadNUM-1))
-			while(1)
-				if(id_signal[id] == 1) break;
-
 		// updates BMPData (they do it in decreasing order)
 		pthread_mutex_lock(&mutex);
-		std::copy(&BMPTemp[0][0], &BMPTemp[0][0]+total_area/(ThreadNUM-id), &BMPData[0][0]);
-		if(id!=0) id_signal[id-1] = 1;
+		if(id== 0) std::copy(&BMPTemp[0][0], &BMPTemp[0][0]+total_area/2, &BMPData[0][0]);
+		if(id==1) std::copy(&BMPTemp[0][0] + total_area/2, &BMPTemp[0][0]+total_area, &BMPData[0][0]+total_area/2);
 		pthread_mutex_unlock(&mutex);
 
 		// copy BMPData to local array
 		std::copy(&BMPData[0][0], &BMPData[0][0] + total_area, &BMPData_local[0][0]);
 
 		// Barrier using mutex
-		pthread_mutex_lock(&barrier);
+		pthread_mutex_lock(&mutex);
 		thread_count++;
-		pthread_mutex_unlock(&barrier);
+		pthread_mutex_unlock(&mutex);
 		while(true) {
 			if(thread_count == ThreadNUM) break;
 		}
@@ -212,7 +204,7 @@ void *smooth(void *arg)
 
 		// image processing
 		swap(BMPTemp, BMPData_local);
-		process_data0(BMPData_local, bmpInfo, BMPTemp, id);
+		process_data0(BMPData, bmpInfo, BMPTemp, id);
 		
 		// reset
 		if(id == 0) {
@@ -224,15 +216,10 @@ void *smooth(void *arg)
 		while(1)
 			if(isDone_) break;
 
-		// Increasing order
-		if(id != 0)
-			while(1)
-				if(id_barrier_signal[id] == 1) break;
-
-		pthread_mutex_lock(&barrier2);
+		pthread_mutex_lock(&mutex);
 		thread_count_++;
-		id_barrier_signal[id+1] = 1;
-		pthread_mutex_unlock(&barrier2);
+		//id_barrier_signal[id+1] = 1;
+		pthread_mutex_unlock(&mutex);
 		while(true) {
 			if(thread_count_ == ThreadNUM) break;
 		}
@@ -243,13 +230,17 @@ void *smooth(void *arg)
 		}
 	}
 
-	// resets signal for the next section of code
-	if(id!= (ThreadNUM-1)) while(1) if(final_signal[id] == 1) break;
+	// increasing order
+	if(id!= 0) 
+		while(1) 
+			if(final_signal[id] == 1) break;
 
 	// race condition	
 	pthread_mutex_lock(&mutex);
-	std::copy(&BMPTemp[0][0], &BMPTemp[0][0]+total_area/(ThreadNUM-id), &BMPSaveData[0][0]);
-	if(id!=0) final_signal[id-1] = 1;
+	//if (id==0) std::copy(&BMPTemp[0][0], &BMPTemp[0][0]+total_area, &BMPSaveData[0][0]);
+	if(id == 1) std::copy(&BMPTemp[0][0]+total_area/2, &BMPTemp[0][0]+total_area, &BMPSaveData[0][0] + total_area/2);
+	if(id==0) std::copy(&BMPTemp[0][0], &BMPTemp[0][0]+total_area/2, &BMPSaveData[0][0]);
+	if(id != (ThreadNUM-1)) final_signal[id+1] = 1;
 	pthread_mutex_unlock(&mutex);
 
 	free(BMPTemp);
@@ -260,11 +251,9 @@ void *smooth(void *arg)
 
 void process_data0(RGBTRIPLE **BMPData, BMPINFO bmpInfo, RGBTRIPLE **BMPTemp, int id)
 {
-	//int start_i = ((bmpInfo.biHeight/ThreadNUM)*id);
-	//int end_i = ((bmpInfo.biHeight/ThreadNUM)*(id+1));
-	//if(end_i != bmpInfo.biHeight) end_i+=2;
-	//if(start_i != 0) start_i-=2;
-	for(int i = 0/*start_i*/; i < bmpInfo.biHeight; i++) {
+	int start_i = ((bmpInfo.biHeight/ThreadNUM)*id);
+	int end_i = ((bmpInfo.biHeight/ThreadNUM)*(id + 1));
+	for(int i = start_i; i < end_i; i++) {
 		process_data(i, BMPData, bmpInfo, BMPTemp);
 	}
 }	
