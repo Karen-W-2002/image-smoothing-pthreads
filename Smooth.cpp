@@ -10,7 +10,7 @@
 using namespace std;
 
 #define NSmooth 1000
-#define ThreadNUM 8
+#define ThreadNUM 6
 
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 int thread_count = 0;
@@ -28,8 +28,8 @@ int saveBMP(char *fileName); //save file
 void swap(RGBTRIPLE *a, RGBTRIPLE *b);
 RGBTRIPLE **alloc_memory(int Y, int X); //allocate memory
 void *smooth(void *arg);
-void process_data0(RGBTRIPLE **BMPData, BMPINFO bmpInfo, RGBTRIPLE **BMPTemp, int id);
-void process_data(int i, RGBTRIPLE **BMPData, BMPINFO bmpInfo, RGBTRIPLE **BMPTemp);
+void process_column(RGBTRIPLE **BMPData, BMPINFO bmpInfo, RGBTRIPLE **BMPTemp, int id);
+void process_row(int i, RGBTRIPLE **BMPData, BMPINFO bmpInfo, RGBTRIPLE **BMPTemp);
 
 int main(int argc,char *argv[])
 {
@@ -173,8 +173,6 @@ void *smooth(void *arg)
 		// updates BMPData (they do it in decreasing order)
 		pthread_mutex_lock(&mutex);
 		std::copy(&BMPTemp[0][0]+((total_area/ThreadNUM)*id), &BMPTemp[0][0]+((total_area/ThreadNUM)*(id+1)), &BMPData[0][0]+((total_area/ThreadNUM)*id));
-		//if(id== 0) std::copy(&BMPTemp[0][0], &BMPTemp[0][0]+total_area/2, &BMPData[0][0]);
-		//if(id==1) std::copy(&BMPTemp[0][0] + total_area/2, &BMPTemp[0][0]+total_area, &BMPData[0][0]+total_area/2);
 		pthread_mutex_unlock(&mutex);
 
 		// copy BMPData to local array
@@ -195,7 +193,7 @@ void *smooth(void *arg)
 
 		// image processing
 		swap(BMPTemp, BMPData_local);
-		process_data0(BMPData, bmpInfo, BMPTemp, id);
+		process_column(BMPData, bmpInfo, BMPTemp, id);
 		
 		// reset
 		if(id == 0) {
@@ -221,8 +219,6 @@ void *smooth(void *arg)
 
 	// race condition	
 	pthread_mutex_lock(&mutex);
-	//if(id == 1) std::copy(&BMPTemp[0][0]+total_area/2, &BMPTemp[0][0]+total_area, &BMPSaveData[0][0] + total_area/2);
-	//if(id==0) std::copy(&BMPTemp[0][0], &BMPTemp[0][0]+total_area/2, &BMPSaveData[0][0]);
 	std::copy(&BMPTemp[0][0]+((total_area/ThreadNUM)*id), &BMPTemp[0][0]+((total_area/ThreadNUM)*(id+1)), &BMPSaveData[0][0]+((total_area/ThreadNUM)*id));
 	pthread_mutex_unlock(&mutex);
 
@@ -232,16 +228,16 @@ void *smooth(void *arg)
 	return 0;
 }
 
-void process_data0(RGBTRIPLE **BMPData, BMPINFO bmpInfo, RGBTRIPLE **BMPTemp, int id)
+void process_column(RGBTRIPLE **BMPData, BMPINFO bmpInfo, RGBTRIPLE **BMPTemp, int id)
 {
 	int start_i = ((bmpInfo.biHeight/ThreadNUM)*id);
 	int end_i = ((bmpInfo.biHeight/ThreadNUM)*(id + 1));
 	for(int i = start_i; i < end_i; i++) {
-		process_data(i, BMPData, bmpInfo, BMPTemp);
+		process_row(i, BMPData, bmpInfo, BMPTemp);
 	}
 }	
 
-void process_data(int i, RGBTRIPLE **BMPData, BMPINFO bmpInfo, RGBTRIPLE **BMPTemp)
+void process_row(int i, RGBTRIPLE **BMPData, BMPINFO bmpInfo, RGBTRIPLE **BMPTemp)
 {
 	for(int j = 0; j < bmpInfo.biWidth; j++) {
 		int Top = i > 0 ? i-1 : bmpInfo.biHeight-1;
