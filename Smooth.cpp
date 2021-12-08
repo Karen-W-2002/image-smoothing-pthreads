@@ -162,33 +162,39 @@ void *smooth(void *arg)
 {
 	int id = *((int*)arg);
 	int total_area = bmpInfo.biHeight * bmpInfo.biWidth;
+	int new_area = total_area/ThreadNUM;
 	RGBTRIPLE **BMPTemp = alloc_memory(bmpInfo.biHeight, bmpInfo.biWidth);
 	RGBTRIPLE **BMPSaveData_local = alloc_memory(bmpInfo.biHeight, bmpInfo.biWidth);
 	RGBTRIPLE **BMPData_local = alloc_memory(bmpInfo.biHeight, bmpInfo.biWidth);
+
 	std::copy(&BMPSaveData[0][0], &BMPSaveData[0][0] + total_area, &BMPSaveData_local[0][0]);
 	std::copy(&BMPData[0][0], &BMPData[0][0] + total_area, &BMPData_local[0][0]);
 	swap(BMPSaveData_local, BMPTemp);
 
 	for(int count = 0; count < NSmooth; count ++) {
 		printf("Count: %d, id: %d\n", count, id);
-		// reset the variables
-		if(id == (ThreadNUM-1)) {
+		
+		// Last thread resets the variables
+		if(id == (ThreadNUM - 1)) {
 			thread_count = 0;
 			isDone = true;
 		}
 		
-		// All threads wait for last thread to reset the variables
-		while(1)
+		// All threads wait for last thread
+		while(1) {
 			if(isDone) break;
+		}			
 
-		// updates BMPData
+		// Updates BMPData (global variable)
+		// Use mutex for thread safety
 		pthread_mutex_lock(&mutex);
-		std::copy(&BMPTemp[0][0]+((total_area/ThreadNUM)*id), &BMPTemp[0][0]+((total_area/ThreadNUM)*(id+1)), &BMPData[0][0]+((total_area/ThreadNUM)*id));
+		std::copy(&BMPTemp[0][0]+((new_area)*id), &BMPTemp[0][0]+((new_area)*(id+1)), &BMPData[0][0]+((new_area)*id));
 		pthread_mutex_unlock(&mutex);
 
-		// copy BMPData to local array
+		// All threads read BMPData and copies to a local BMPData
 		std::copy(&BMPData[0][0], &BMPData[0][0] + total_area, &BMPData_local[0][0]);
 
+		// Waiting for all threads...
 		// Barrier using mutex
 		pthread_mutex_lock(&mutex);
 		thread_count++;
@@ -197,24 +203,27 @@ void *smooth(void *arg)
 			if(thread_count == ThreadNUM) break;
 		}
 
-		// reset again with the last one in place
+		// Resets for next loop
 		if(id == 0) {
 			isDone = false;
 		}
 
-		// image processing
+		// Image processing
 		swap(BMPTemp, BMPData_local);
 		process_column(BMPData, bmpInfo, BMPTemp, id);
 		
-		// reset
+		// Thread 0 resets the variables
 		if(id == 0) {
 			thread_count_ = 0;
 			isDone_ = true;
 		}
 
-		while(1)
+		// All threads waits for thread 0 to reset
+		while(1) {
 			if(isDone_) break;
+		}
 
+		// Barrier using mutex
 		pthread_mutex_lock(&mutex);
 		thread_count_++;
 		pthread_mutex_unlock(&mutex);
@@ -222,15 +231,18 @@ void *smooth(void *arg)
 			if(thread_count_ == ThreadNUM) break;
 		}
 
-		// reset again with the last one in place
+		// Reset for next loop
 		if(id == (ThreadNUM - 1)) {
 			isDone_ = false;
 		}
 	}
 
-	// race condition	
+
+
+	// Each thread writes processed image into BMPSaveData
+	// Use mutex for thread safety
 	pthread_mutex_lock(&mutex);
-	std::copy(&BMPTemp[0][0]+((total_area/ThreadNUM)*id), &BMPTemp[0][0]+((total_area/ThreadNUM)*(id+1)), &BMPSaveData[0][0]+((total_area/ThreadNUM)*id));
+	std::copy(&BMPTemp[0][0]+((new_area)*id), &BMPTemp[0][0]+((new_area)*(id+1)), &BMPSaveData[0][0]+((new_area)*id));
 	pthread_mutex_unlock(&mutex);
 
 	free(BMPTemp);
@@ -241,8 +253,9 @@ void *smooth(void *arg)
 
 void process_column(RGBTRIPLE **BMPData, BMPINFO bmpInfo, RGBTRIPLE **BMPTemp, int id)
 {
-	int start_i = ((bmpInfo.biHeight/ThreadNUM)*id);
-	int end_i = ((bmpInfo.biHeight/ThreadNUM)*(id + 1));
+	int new_height = bmpInfo.biHeight/ThreadNUM;
+	int start_i = ((new_height)*id);
+	int end_i = ((new_height)*(id + 1));
 
 	for(int i = start_i; i < end_i; i++) {
 		process_row(i, BMPData, bmpInfo, BMPTemp);
