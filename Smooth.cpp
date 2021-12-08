@@ -42,7 +42,7 @@ int main(int argc, char *argv[])
 	
 	// Read BMP file
     if(readBMP(infileName)) {
-    	cout << "Read file successfully!!" << endl;
+        cout << "Read file successfully!!" << endl;
 	} else { 
         cout << "Read file fails!!" << endl;
 	}
@@ -65,14 +65,14 @@ int main(int argc, char *argv[])
 
 	// Save BMP file
     if(saveBMP(outfileName)) {
-    	cout << "Save file successfully!!" << endl;
+        cout << "Save file successfully!!" << endl;
 	} else {
         cout << "Save file fails!!" << endl;
 	}
 
 	pthread_mutex_destroy(&mutex);
-	free(BMPData);
-	free(BMPSaveData);
+    free(BMPData);
+    free(BMPSaveData);
     return 0;
 }
 
@@ -81,47 +81,47 @@ int readBMP(char *fileName)
     ifstream bmpFile(fileName, ios::in | ios::binary);
 
     if(!bmpFile) {
-    	cout << "It can't open file!!" << endl;
-       	return 0;
-   	}
+        cout << "It can't open file!!" << endl;
+        return 0;
+    }
  
-	bmpFile.read((char*)&bmpHeader, sizeof(BMPHEADER));
- 
+    bmpFile.read((char*)&bmpHeader, sizeof(BMPHEADER));
+    
     if(bmpHeader.bfType != 0x4d42) {
-    	cout << "This file is not .BMP!!" << endl ;
+        cout << "This file is not .BMP!!" << endl ;
         return 0;
     }
  
     bmpFile.read((char*)&bmpInfo, sizeof(BMPINFO));
         
     if(bmpInfo.biBitCount != 24) {
-   		cout << "The file is not 24 bits!!" << endl;
+   	    cout << "The file is not 24 bits!!" << endl;
         return 0;
    	}
 
     while(bmpInfo.biWidth % 4 != 0) {
-    	bmpInfo.biWidth++;
+        bmpInfo.biWidth++;
 	}
 
     BMPSaveData = alloc_memory(bmpInfo.biHeight, bmpInfo.biWidth);
-	bmpFile.read((char*)BMPSaveData[0], bmpInfo.biWidth*sizeof(RGBTRIPLE)*bmpInfo.biHeight);
+    bmpFile.read((char*)BMPSaveData[0], bmpInfo.biWidth*sizeof(RGBTRIPLE)*bmpInfo.biHeight);
 	
     bmpFile.close();
  
-   	return 1;
+    return 1;
 }
 
 int saveBMP(char *fileName)
 {
-	if(bmpHeader.bfType != 0x4d42) {
-    	cout << "This file is not .BMP!!" << endl ;
+    if(bmpHeader.bfType != 0x4d42) {
+        cout << "This file is not .BMP!!" << endl ;
         return 0;
     }
         
     ofstream newFile(fileName, ios::out | ios::binary);
  
     if(!newFile) {
-   		cout << "The File can't create!!" << endl;
+   	    cout << "The File can't create!!" << endl;
         return 0;
 	}
  	
@@ -139,11 +139,11 @@ int saveBMP(char *fileName)
 RGBTRIPLE **alloc_memory(int Y, int X)
 {        
     RGBTRIPLE **temp = new RGBTRIPLE *[Y];
-	RGBTRIPLE *temp2 = new RGBTRIPLE [Y * X];
-   	memset(temp, 0, sizeof(RGBTRIPLE) * Y);
-   	memset(temp2, 0, sizeof(RGBTRIPLE) * Y * X );
+    RGBTRIPLE *temp2 = new RGBTRIPLE [Y * X];
+    memset(temp, 0, sizeof(RGBTRIPLE) * Y);
+    memset(temp2, 0, sizeof(RGBTRIPLE) * Y * X );
 
-	for(int i = 0; i < Y; i++) {
+    for(int i = 0; i < Y; i++) {
         temp[i] = &temp2[i * X];
     }
  
@@ -152,15 +152,15 @@ RGBTRIPLE **alloc_memory(int Y, int X)
 
 void swap(RGBTRIPLE *a, RGBTRIPLE *b)
 {
-	RGBTRIPLE *temp;
-	temp = a;
-	a = b;
-	b = temp;
+    RGBTRIPLE *temp;
+    temp = a;
+    a = b;
+    b = temp;
 }
 
 void *smooth(void *arg)
 {
-	int id = *((int*)arg);
+    int id = *((int*)arg);
 	int total_area = bmpInfo.biHeight * bmpInfo.biWidth;
 	int new_area = total_area/ThreadNUM;
 	RGBTRIPLE **BMPTemp = alloc_memory(bmpInfo.biHeight, bmpInfo.biWidth);
