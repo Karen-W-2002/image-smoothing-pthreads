@@ -1,8 +1,5 @@
 #include <iostream>
 #include <algorithm> // std::fill
-#include <time.h>
-#include <string>
-#include <fstream>
 #include <stdio.h>
 #include <cstring>
 #include <cstdlib>
@@ -15,13 +12,10 @@ using namespace std;
 #define ThreadNUM 2
 
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-int id_signal[ThreadNUM] = {0};
-int id_barrier_signal[ThreadNUM] = {0};
 int thread_count = 0;
 int thread_count_ = 0;
 bool isDone = false;
 bool isDone_ = false;
-int final_signal[ThreadNUM] = {0};
 
 BMPHEADER bmpHeader;            
 BMPINFO bmpInfo;
@@ -38,8 +32,6 @@ void process_data(int i, RGBTRIPLE **BMPData, BMPINFO bmpInfo, RGBTRIPLE **BMPTe
 
 int main(int argc,char *argv[])
 {
-	clock_t time_start = clock();
-
     char *infileName = (char*)"input.bmp";
     char *outfileName = (char*)"output.bmp";
 	
@@ -62,8 +54,6 @@ int main(int argc,char *argv[])
 	for(int i = 0; i < ThreadNUM; i++) {
 		pthread_join(tid[i], NULL);
 	 }
-
-	printf("Time taken %.2f seconds\n", (double)((clock()-time_start)/CLOCKS_PER_SEC)/4);
 
     if ( saveBMP( outfileName ) )
     	cout << "Save file successfully!!" << endl;
@@ -173,7 +163,6 @@ void *smooth(void *arg)
 		// reset the variables
 		if(id == (ThreadNUM-1)) {
 			thread_count = 0;
-			memset(&id_signal, 0, sizeof(id_signal));
 			isDone = true;
 		}
 
@@ -209,7 +198,6 @@ void *smooth(void *arg)
 		// reset
 		if(id == 0) {
 			thread_count_ = 0;
-			memset(&id_barrier_signal, 0, sizeof(id_barrier_signal));
 			isDone_ = true;
 		}
 
@@ -218,7 +206,6 @@ void *smooth(void *arg)
 
 		pthread_mutex_lock(&mutex);
 		thread_count_++;
-		//id_barrier_signal[id+1] = 1;
 		pthread_mutex_unlock(&mutex);
 		while(true) {
 			if(thread_count_ == ThreadNUM) break;
@@ -230,17 +217,10 @@ void *smooth(void *arg)
 		}
 	}
 
-	// increasing order
-	if(id!= 0) 
-		while(1) 
-			if(final_signal[id] == 1) break;
-
 	// race condition	
 	pthread_mutex_lock(&mutex);
-	//if (id==0) std::copy(&BMPTemp[0][0], &BMPTemp[0][0]+total_area, &BMPSaveData[0][0]);
 	if(id == 1) std::copy(&BMPTemp[0][0]+total_area/2, &BMPTemp[0][0]+total_area, &BMPSaveData[0][0] + total_area/2);
 	if(id==0) std::copy(&BMPTemp[0][0], &BMPTemp[0][0]+total_area/2, &BMPSaveData[0][0]);
-	if(id != (ThreadNUM-1)) final_signal[id+1] = 1;
 	pthread_mutex_unlock(&mutex);
 
 	free(BMPTemp);
