@@ -1,5 +1,6 @@
 #include <iostream>
 #include <algorithm> // std::fill
+#include <fstream>
 #include <stdio.h>
 #include <cstring>
 #include <cstdlib>
@@ -9,7 +10,7 @@
 using namespace std;
 
 #define NSmooth 1000
-#define ThreadNUM 2
+#define ThreadNUM 8
 
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 int thread_count = 0;
@@ -171,8 +172,9 @@ void *smooth(void *arg)
 
 		// updates BMPData (they do it in decreasing order)
 		pthread_mutex_lock(&mutex);
-		if(id== 0) std::copy(&BMPTemp[0][0], &BMPTemp[0][0]+total_area/2, &BMPData[0][0]);
-		if(id==1) std::copy(&BMPTemp[0][0] + total_area/2, &BMPTemp[0][0]+total_area, &BMPData[0][0]+total_area/2);
+		std::copy(&BMPTemp[0][0]+((total_area/ThreadNUM)*id), &BMPTemp[0][0]+((total_area/ThreadNUM)*(id+1)), &BMPData[0][0]+((total_area/ThreadNUM)*id));
+		//if(id== 0) std::copy(&BMPTemp[0][0], &BMPTemp[0][0]+total_area/2, &BMPData[0][0]);
+		//if(id==1) std::copy(&BMPTemp[0][0] + total_area/2, &BMPTemp[0][0]+total_area, &BMPData[0][0]+total_area/2);
 		pthread_mutex_unlock(&mutex);
 
 		// copy BMPData to local array
@@ -219,8 +221,9 @@ void *smooth(void *arg)
 
 	// race condition	
 	pthread_mutex_lock(&mutex);
-	if(id == 1) std::copy(&BMPTemp[0][0]+total_area/2, &BMPTemp[0][0]+total_area, &BMPSaveData[0][0] + total_area/2);
-	if(id==0) std::copy(&BMPTemp[0][0], &BMPTemp[0][0]+total_area/2, &BMPSaveData[0][0]);
+	//if(id == 1) std::copy(&BMPTemp[0][0]+total_area/2, &BMPTemp[0][0]+total_area, &BMPSaveData[0][0] + total_area/2);
+	//if(id==0) std::copy(&BMPTemp[0][0], &BMPTemp[0][0]+total_area/2, &BMPSaveData[0][0]);
+	std::copy(&BMPTemp[0][0]+((total_area/ThreadNUM)*id), &BMPTemp[0][0]+((total_area/ThreadNUM)*(id+1)), &BMPSaveData[0][0]+((total_area/ThreadNUM)*id));
 	pthread_mutex_unlock(&mutex);
 
 	free(BMPTemp);
