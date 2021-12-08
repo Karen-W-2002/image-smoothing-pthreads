@@ -39,38 +39,38 @@ int main(int argc, char *argv[])
 {
     char *infileName = (char*)"input.bmp";
     char *outfileName = (char*)"output.bmp";
-	
-	// Read BMP file
+
+    // Read BMP file
     if(readBMP(infileName)) {
         cout << "Read file successfully!!" << endl;
-	} else { 
+    } else { 
         cout << "Read file fails!!" << endl;
-	}
+    }
 
     BMPData = alloc_memory(bmpInfo.biHeight, bmpInfo.biWidth);
 
-	// Smoothing operations using threads
-	pthread_t tid[ThreadNUM];
-	unsigned int thread_ids[ThreadNUM];
+    // Smoothing operations using threads
+    pthread_t tid[ThreadNUM];
+    unsigned int thread_ids[ThreadNUM];
 
-	for(int i = 0; i < ThreadNUM; i++) {
-		thread_ids[i] = i;
-		pthread_create(&tid[i], NULL, smooth, &thread_ids[i]);
-	}
+    for(int i = 0; i < ThreadNUM; i++) {
+        thread_ids[i] = i;
+        pthread_create(&tid[i], NULL, smooth, &thread_ids[i]);
+    }
 
-	// Waiting for threads...
-	for(int i = 0; i < ThreadNUM; i++) {
-		pthread_join(tid[i], NULL);
-	 }
+    // Waiting for threads...
+    for(int i = 0; i < ThreadNUM; i++) {
+        pthread_join(tid[i], NULL);
+    }
 
-	// Save BMP file
+    // Save BMP file
     if(saveBMP(outfileName)) {
         cout << "Save file successfully!!" << endl;
-	} else {
+    } else {
         cout << "Save file fails!!" << endl;
-	}
+    }
 
-	pthread_mutex_destroy(&mutex);
+    pthread_mutex_destroy(&mutex);
     free(BMPData);
     free(BMPSaveData);
     return 0;
@@ -161,116 +161,114 @@ void swap(RGBTRIPLE *a, RGBTRIPLE *b)
 void *smooth(void *arg)
 {
     int id = *((int*)arg);
-	int total_area = bmpInfo.biHeight * bmpInfo.biWidth;
-	int new_area = total_area/ThreadNUM;
-	RGBTRIPLE **BMPTemp = alloc_memory(bmpInfo.biHeight, bmpInfo.biWidth);
-	RGBTRIPLE **BMPSaveData_local = alloc_memory(bmpInfo.biHeight, bmpInfo.biWidth);
-	RGBTRIPLE **BMPData_local = alloc_memory(bmpInfo.biHeight, bmpInfo.biWidth);
+    int total_area = bmpInfo.biHeight * bmpInfo.biWidth;
+    int new_area = total_area/ThreadNUM;
+    RGBTRIPLE **BMPTemp = alloc_memory(bmpInfo.biHeight, bmpInfo.biWidth);
+    RGBTRIPLE **BMPSaveData_local = alloc_memory(bmpInfo.biHeight, bmpInfo.biWidth);
+    RGBTRIPLE **BMPData_local = alloc_memory(bmpInfo.biHeight, bmpInfo.biWidth);
 
-	std::copy(&BMPSaveData[0][0], &BMPSaveData[0][0] + total_area, &BMPSaveData_local[0][0]);
-	std::copy(&BMPData[0][0], &BMPData[0][0] + total_area, &BMPData_local[0][0]);
-	swap(BMPSaveData_local, BMPTemp);
+    std::copy(&BMPSaveData[0][0], &BMPSaveData[0][0] + total_area, &BMPSaveData_local[0][0]);
+    std::copy(&BMPData[0][0], &BMPData[0][0] + total_area, &BMPData_local[0][0]);
+    swap(BMPSaveData_local, BMPTemp);
 
-	for(int count = 0; count < NSmooth; count ++) {
-		printf("Count: %d, id: %d\n", count, id);
+    for(int count = 0; count < NSmooth; count ++) {
+        printf("Count: %d, id: %d\n", count, id);
 		
-		// Last thread resets the variables
-		if(id == (ThreadNUM - 1)) {
-			thread_count = 0;
-			isDone = true;
-		}
+        // Last thread resets the variables
+        if(id == (ThreadNUM - 1)) {
+            thread_count = 0;
+            isDone = true;
+        }
 		
-		// All threads wait for last thread
-		while(1) {
-			if(isDone) break;
-		}			
+        // All threads wait for last thread
+        while(1) {
+            if(isDone) break;
+        }			
 
-		// Updates BMPData (global variable)
-		// Use mutex for thread safety
-		pthread_mutex_lock(&mutex);
-		std::copy(&BMPTemp[0][0]+((new_area)*id), &BMPTemp[0][0]+((new_area)*(id+1)), &BMPData[0][0]+((new_area)*id));
-		pthread_mutex_unlock(&mutex);
+        // Updates BMPData (global variable)
+        // Use mutex for thread safety
+        pthread_mutex_lock(&mutex);
+        std::copy(&BMPTemp[0][0]+((new_area)*id), &BMPTemp[0][0]+((new_area)*(id+1)), &BMPData[0][0]+((new_area)*id));
+        pthread_mutex_unlock(&mutex);
 
-		// All threads read BMPData and copies to a local BMPData
-		std::copy(&BMPData[0][0], &BMPData[0][0] + total_area, &BMPData_local[0][0]);
+        // All threads read BMPData and copies to a local BMPData
+        std::copy(&BMPData[0][0], &BMPData[0][0] + total_area, &BMPData_local[0][0]);
 
-		// Waiting for all threads...
-		// Barrier using mutex
-		pthread_mutex_lock(&mutex);
-		thread_count++;
-		pthread_mutex_unlock(&mutex);
-		while(true) {
-			if(thread_count == ThreadNUM) break;
-		}
+        // Waiting for all threads...
+        // Barrier using mutex
+        pthread_mutex_lock(&mutex);
+        thread_count++;
+        pthread_mutex_unlock(&mutex);
+        while(true) {
+            if(thread_count == ThreadNUM) break;
+        }
 
-		// Resets for next loop
-		if(id == 0) {
-			isDone = false;
-		}
+        // Resets for next loop
+        if(id == 0) {
+            isDone = false;
+        }
 
-		// Image processing
-		swap(BMPTemp, BMPData_local);
-		process_column(BMPData, bmpInfo, BMPTemp, id);
+        // Image processing
+        swap(BMPTemp, BMPData_local);
+        process_column(BMPData, bmpInfo, BMPTemp, id);
 		
-		// Thread 0 resets the variables
-		if(id == 0) {
-			thread_count_ = 0;
-			isDone_ = true;
-		}
+        // Thread 0 resets the variables
+        if(id == 0) {
+            thread_count_ = 0;
+            isDone_ = true;
+        }
 
-		// All threads waits for thread 0 to reset
-		while(1) {
-			if(isDone_) break;
-		}
+        // All threads waits for thread 0 to reset
+        while(1) {
+            if(isDone_) break;
+        }
 
-		// Barrier using mutex
-		pthread_mutex_lock(&mutex);
-		thread_count_++;
-		pthread_mutex_unlock(&mutex);
-		while(true) {
-			if(thread_count_ == ThreadNUM) break;
-		}
+        // Barrier using mutex
+        pthread_mutex_lock(&mutex);
+        thread_count_++;
+        pthread_mutex_unlock(&mutex);
+        while(true) {
+            if(thread_count_ == ThreadNUM) break;
+        }
 
-		// Reset for next loop
-		if(id == (ThreadNUM - 1)) {
-			isDone_ = false;
-		}
-	}
+        // Reset for next loop
+        if(id == (ThreadNUM - 1)) {
+            isDone_ = false;
+        }
+    }
 
+    // Each thread writes processed image into BMPSaveData
+    // Use mutex for thread safety
+    pthread_mutex_lock(&mutex);
+    std::copy(&BMPTemp[0][0]+((new_area)*id), &BMPTemp[0][0]+((new_area)*(id+1)), &BMPSaveData[0][0]+((new_area)*id));
+    pthread_mutex_unlock(&mutex);
 
-
-	// Each thread writes processed image into BMPSaveData
-	// Use mutex for thread safety
-	pthread_mutex_lock(&mutex);
-	std::copy(&BMPTemp[0][0]+((new_area)*id), &BMPTemp[0][0]+((new_area)*(id+1)), &BMPSaveData[0][0]+((new_area)*id));
-	pthread_mutex_unlock(&mutex);
-
-	free(BMPTemp);
-	free(BMPSaveData_local);
-	free(BMPData_local);
-	return 0;
+    free(BMPTemp);
+    free(BMPSaveData_local);
+    free(BMPData_local);
+    return 0;
 }
 
 void process_column(RGBTRIPLE **BMPData, BMPINFO bmpInfo, RGBTRIPLE **BMPTemp, int id)
 {
-	int new_height = bmpInfo.biHeight/ThreadNUM;
-	int start_i = ((new_height)*id);
-	int end_i = ((new_height)*(id + 1));
+    int new_height = bmpInfo.biHeight/ThreadNUM;
+    int start_i = ((new_height)*id);
+    int end_i = ((new_height)*(id + 1));
 
-	for(int i = start_i; i < end_i; i++) {
-		process_row(i, BMPData, bmpInfo, BMPTemp);
-	}
+    for(int i = start_i; i < end_i; i++) {
+        process_row(i, BMPData, bmpInfo, BMPTemp);
+    }
 }	
 
 void process_row(int i, RGBTRIPLE **BMPData, BMPINFO bmpInfo, RGBTRIPLE **BMPTemp)
 {
-	for(int j = 0; j < bmpInfo.biWidth; j++) {
-		int Top = i > 0 ? i - 1 : bmpInfo.biHeight - 1;
-		int Down = i < bmpInfo.biHeight - 1 ? i + 1 :0;
-		int Left = j > 0 ? j - 1 : bmpInfo.biWidth - 1;
-		int Right = j < bmpInfo.biWidth - 1 ? j + 1 : 0;
-		BMPTemp[i][j].rgbBlue = (double)(BMPData[i][j].rgbBlue+BMPData[Top][j].rgbBlue+BMPData[Top][Left].rgbBlue+BMPData[Top][Right].rgbBlue+BMPData[Down][j].rgbBlue+BMPData[Down][Left].rgbBlue+BMPData[Down][Right].rgbBlue+BMPData[i][Left].rgbBlue+BMPData[i][Right].rgbBlue)/9+0.5;
-		BMPTemp[i][j].rgbGreen = (double)(BMPData[i][j].rgbGreen+BMPData[Top][j].rgbGreen+BMPData[Top][Left].rgbGreen+BMPData[Top][Right].rgbGreen+BMPData[Down][j].rgbGreen+BMPData[Down][Left].rgbGreen+BMPData[Down][Right].rgbGreen+BMPData[i][Left].rgbGreen+BMPData[i][Right].rgbGreen)/9+0.5;
-		BMPTemp[i][j].rgbRed = (double)(BMPData[i][j].rgbRed+BMPData[Top][j].rgbRed+BMPData[Top][Left].rgbRed+BMPData[Top][Right].rgbRed+BMPData[Down][j].rgbRed+BMPData[Down][Left].rgbRed+BMPData[Down][Right].rgbRed+BMPData[i][Left].rgbRed+BMPData[i][Right].rgbRed)/9+0.5;
-	}
+    for(int j = 0; j < bmpInfo.biWidth; j++) {
+        int Top = i > 0 ? i - 1 : bmpInfo.biHeight - 1;
+        int Down = i < bmpInfo.biHeight - 1 ? i + 1 :0;
+        int Left = j > 0 ? j - 1 : bmpInfo.biWidth - 1;
+        int Right = j < bmpInfo.biWidth - 1 ? j + 1 : 0;
+        BMPTemp[i][j].rgbBlue = (double)(BMPData[i][j].rgbBlue+BMPData[Top][j].rgbBlue+BMPData[Top][Left].rgbBlue+BMPData[Top][Right].rgbBlue+BMPData[Down][j].rgbBlue+BMPData[Down][Left].rgbBlue+BMPData[Down][Right].rgbBlue+BMPData[i][Left].rgbBlue+BMPData[i][Right].rgbBlue)/9+0.5;
+        BMPTemp[i][j].rgbGreen = (double)(BMPData[i][j].rgbGreen+BMPData[Top][j].rgbGreen+BMPData[Top][Left].rgbGreen+BMPData[Top][Right].rgbGreen+BMPData[Down][j].rgbGreen+BMPData[Down][Left].rgbGreen+BMPData[Down][Right].rgbGreen+BMPData[i][Left].rgbGreen+BMPData[i][Right].rgbGreen)/9+0.5;
+        BMPTemp[i][j].rgbRed = (double)(BMPData[i][j].rgbRed+BMPData[Top][j].rgbRed+BMPData[Top][Left].rgbRed+BMPData[Top][Right].rgbRed+BMPData[Down][j].rgbRed+BMPData[Down][Left].rgbRed+BMPData[Down][Right].rgbRed+BMPData[i][Left].rgbRed+BMPData[i][Right].rgbRed)/9+0.5;
+    }
 }
