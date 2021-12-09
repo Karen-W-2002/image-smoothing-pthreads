@@ -45,9 +45,9 @@ First, the main program creates n threads, and then, in order to achieve concurr
 ### Execution
 `./Smooth`
 ## Results
-![Image of a graph]()
+![Image of a graph](https://github.com/Karen-W-2002/image-smoothing-pthreads/blob/main/Graph.png)
 
 ### Analysis on the results
-
+Concurrent multithreading makes the result faster, however because of overhead, the cost of resources when too many threads are created, that can cause the program to run slower and slower, which explains the graph of the negative slope then positive slope.
 
 ### My thoughts
