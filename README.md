@@ -2,13 +2,16 @@
 Program written in C++ with the use of pthread.h
 
 ### Description 
-Image smoothing of a bmp file using thread parallelisation. This image is smoothed 1000 times and parallelisation will allow this image to be processed faster. The image smoothing is done by averaging the pixels around the current pixel, and parallelisation is done through pthreads.
+Image smoothing of a bmp file using thread parallelisation. This image is smoothed 1000 times and parallelisation will allow this image to be processed faster. 
+
+The image smoothing is done by averaging the pixels around the current pixel, and parallelisation is done through pthreads.
 #### Before
 ![Image of an unsmoothed BMP file](https://github.com/Karen-W-2002/image-smoothing-pthreads/blob/main/input.bmp)
 #### After
 ![Image of a smoothed BMP file](https://github.com/Karen-W-2002/image-smoothing-pthreads/blob/main/output.bmp)
 ### How Does the Program Work?
 The program uses **concurrent** multithreading making the program run faster
+
 Number of threads: your choice, edit #define ThreadNUM
 
 The threads splits the image equally and each process this image concurrently, achieving a faster run time
@@ -31,6 +34,8 @@ First, the main program creates n threads, and then, in order to achieve concurr
 - **RGBTRIPLE \*\*alloc_memory(int Y, int X)**
   - Dynmically allocates memory
 
+#### Functions I created
+
 - **smooth(void \*arg)**
   - Smoothing operation, called by pthread_create
 
@@ -51,3 +56,6 @@ First, the main program creates n threads, and then, in order to achieve concurr
 Concurrent multithreading makes the result faster, however because of overhead, the cost of resources when too many threads are created, that can cause the program to run slower and slower, which explains the graph of the negative slope then positive slope.
 
 ### My thoughts
+Using threads for parallelisation might actually be better than using multiprocessors because of how lightweight it is, but it really depends on the work it is doing.
+
+The hardest part was figuring out how to let them run in sync, because one thread can run faster than the other one, resulting in race condition, and it can mess the whole program up, it took a couple of trial and errors to figure that out, I used conditional variables to fix it.
